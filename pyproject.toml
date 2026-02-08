@@ -51,7 +51,7 @@ warn_redundant_casts = true
 
 [tool.sphinx-pyproject]
 project = "adakoop"
-copyright = "2026, naoki"
+copyright = "2026, anonymous"
 language = "en"
 package_root = "adakoop"
 html_theme = "sphinx_rtd_theme"
