@@ -27,8 +27,8 @@ if [ -z "$COMMAND" ]; then
 fi
 
 # Check if COMMAND does not include invalid options
-if [ "$(echo "$COMMAND" | cut -c1-6)" != "poetry" ]; then
-  echo "Error: Invarid options" >&2
+if [ "$(echo "$COMMAND" | cut -c1-6)" != "uv run" ]; then
+  echo "Error: Invalid options" >&2
   echo "Use only: [-n]" >&2
   exit 1
 fi
