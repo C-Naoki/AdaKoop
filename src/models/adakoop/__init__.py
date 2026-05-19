@@ -6,7 +6,7 @@ from scipy.spatial.distance import squareform
 from scipy.stats import chi2
 
 from src.models.adakoop.module.kernel import build_kernel
-from src.models.adakoop.module.lks import LKS
+from src.models.adakoop.module.dks import DKS
 from src.models.adakoop.module.storage import Storage
 
 MAX_MODELS = 30
@@ -59,8 +59,8 @@ class AdaKoop:
         self.exceed_rate_th = exceed_rate_th
         self.state_reset_P_scale = state_reset_P_scale
 
-        self.lks_c = None
-        self._lks_c_idx = None
+        self.dks_c = None
+        self._dks_c_idx = None
         self._create_cnt = 0
         self._cusum_g = 0.0
         self._skip_next_update = False
@@ -207,15 +207,15 @@ class AdaKoop:
             if len(self.current_data) < self.lcurr:
                 return {
                     'mode': 'recovery',
-                    'active_model_idx': self.lks_c.idx,
+                    'active_model_idx': self.dks_c.idx,
                     'status': 'accumulating_data',
                     'current_len': len(self.current_data),
                 }
             else:
                 best_score = float('inf')
                 accepted_any = False
-                for lks in self.storage():
-                    metrics = lks.score_window(
+                for dks in self.storage():
+                    metrics = dks.score_window(
                         Xc=self.current_data,
                         chi2_th=self.chi2_th,
                         reset_P_scale=self.state_reset_P_scale,
@@ -237,13 +237,13 @@ class AdaKoop:
                     if self._create_cnt < self.least_duration:
                         self.storage.pop()
                     kernel = build_kernel(self.current_data, kernel_type=self.kernel_type)
-                    lks_new, _ = self.storage.create(
+                    dks_new, _ = self.storage.create(
                         Xc=self.current_data,
                         kernel=kernel,
                         append=True,
                     )
-                    self.lks_c = lks_new
-                    self._lks_c_idx = lks_new.idx
+                    self.dks_c = dks_new
+                    self._dks_c_idx = dks_new.idx
                     self._create_cnt = 0
                     created_new = True
 
@@ -254,11 +254,11 @@ class AdaKoop:
                         'switched': created_new,
                         'created_new': created_new,
                         'cusum_g': self._cusum_g,
-                        'active_model_idx': self.lks_c.idx,
+                        'active_model_idx': self.dks_c.idx,
                     }
                 self._in_recovery = False
 
-        dist_sq = self._innovation_dist_sq(self.lks_c, x_new)
+        dist_sq = self._innovation_dist_sq(self.dks_c, x_new)
         self._cusum_g = max(0.0, self._cusum_g + (dist_sq - self.chi2_th))
         triggered = bool(self._cusum_g > self.cusum_h)
 
@@ -268,10 +268,10 @@ class AdaKoop:
                 'switched': created_new,
                 'created_new': created_new,
                 'cusum_g': self._cusum_g,
-                'active_model_idx': self.lks_c.idx,
+                'active_model_idx': self.dks_c.idx,
             }
 
-        change_point = self.lks_c.detect_change_point(
+        change_point = self.dks_c.detect_change_point(
             self.current_data,
             chi2_th=self.chi2_th,
             reset_P_scale=self.state_reset_P_scale,
@@ -285,7 +285,7 @@ class AdaKoop:
             'created_new': created_new,
             'dist_sq': dist_sq,
             'cusum_g': self._cusum_g,
-            'active_model_idx': self.lks_c.idx,
+            'active_model_idx': self.dks_c.idx,
         }
 
     def update(self, x_new: np.ndarray) -> Dict[str, Any]:
@@ -293,10 +293,10 @@ class AdaKoop:
             self._skip_next_update = False
             return {
                 'skipped': True,
-                'active_model_idx': self.lks_c.idx,
+                'active_model_idx': self.dks_c.idx,
             }
 
-        out = self.lks_c.update(
+        out = self.dks_c.update(
             x_new,
             compress=self.compress,
             update_dict=self.add_dict,
@@ -304,11 +304,11 @@ class AdaKoop:
             update_state=True,
         )
         out['skipped'] = False
-        out['active_model_idx'] = self.lks_c.idx
+        out['active_model_idx'] = self.dks_c.idx
         return out
 
     def forecast(self, lstep: int, scale: float = 3.0) -> tuple[np.ndarray, np.ndarray, bool]:
-        pred_mean, pred_cov = self.lks_c.predict(lstep)
+        pred_mean, pred_cov = self.dks_c.predict(lstep)
 
         traces = np.trace(pred_cov, axis1=1, axis2=2)
         uncertainty = np.max(traces)
@@ -317,7 +317,7 @@ class AdaKoop:
         if uncertainty > var_threshold:
             if self.verbose:
                 print(f'Uncertainty {uncertainty:.4f} exceeded threshold {var_threshold:.4f}')
-            current_x_est = self.lks_c.params['C'] @ self.lks_c.current_mu
+            current_x_est = self.dks_c.params['C'] @ self.dks_c.current_mu
             fallback_mean = np.tile(current_x_est, (lstep, 1))
 
             return fallback_mean, pred_cov, True
@@ -325,12 +325,12 @@ class AdaKoop:
         return pred_mean, pred_cov, False
 
     def set_initial_model(self, X: np.ndarray) -> None:
-        if self.lks_c is not None:
+        if self.dks_c is not None:
             print('[Warning] Initial model is already set. Overwriting.')
 
         best_score_any = float('inf')
-        for pos, lks in enumerate(self.storage()):
-            metrics = lks.score_window(
+        for pos, dks in enumerate(self.storage()):
+            metrics = dks.score_window(
                 Xc=X,
                 chi2_th=self.chi2_th,
                 reset_P_scale=self.state_reset_P_scale,
@@ -345,8 +345,8 @@ class AdaKoop:
 
         selected = self.storage[best_pos_any]
         _set_filter_state(selected, best_metrics_any['mu_before_last'], best_metrics_any['P_before_last'])
-        self.lks_c = selected
-        self._lks_c_idx = selected.idx
+        self.dks_c = selected
+        self._dks_c_idx = selected.idx
         self.current_data = X
         self._in_recovery = False
 
@@ -361,13 +361,13 @@ class AdaKoop:
 
         return tr11 * tr22 - term2
 
-    def _innovation_dist_sq(self, lks: LKS, x_t: np.ndarray) -> float:
-        out = lks.one_step_prediction(x_t)
+    def _innovation_dist_sq(self, dks: DKS, x_t: np.ndarray) -> float:
+        out = dks.one_step_prediction(x_t)
         return out['dist_sq']
 
 
-def _set_filter_state(lks: LKS, mu: np.ndarray, P: np.ndarray) -> None:
+def _set_filter_state(dks: DKS, mu: np.ndarray, P: np.ndarray) -> None:
     mu = np.asarray(mu, dtype=float).ravel()
     P = np.asarray(P, dtype=float)
-    lks.current_mu = mu.copy()
-    lks.current_P = P.copy()
+    dks.current_mu = mu.copy()
+    dks.current_P = P.copy()

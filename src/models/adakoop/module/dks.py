@@ -8,7 +8,7 @@ from src.models.adakoop.module.refiner import blockdiag, em_refine, kalman_filte
 from src.models.adakoop.module.rrr import rrr
 
 
-class LKS:
+class DKS:
     def __init__(
         self,
         idx: int,
@@ -37,7 +37,7 @@ class LKS:
         self._fitted = False
 
     def __eq__(self, other: object) -> bool:
-        if isinstance(other, LKS):
+        if isinstance(other, DKS):
             return self.idx == other.idx
         else:
             raise TypeError('Not supported type')

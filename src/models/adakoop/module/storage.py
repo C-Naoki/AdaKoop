@@ -3,7 +3,7 @@ from typing import Any, Optional
 import numpy as np
 
 from src.models.adakoop.module.ald import ALDDictionary
-from src.models.adakoop.module.lks import LKS
+from src.models.adakoop.module.dks import DKS
 
 
 class Storage:
@@ -31,27 +31,27 @@ class Storage:
         self.jitter = jitter
         self.verbose = verbose
 
-        self.lkses = []
+        self.dks_ls = []
 
-    def __call__(self) -> list[LKS]:
-        return self.lkses
+    def __call__(self) -> list[DKS]:
+        return self.dks_ls
 
-    def __getitem__(self, idx: int) -> LKS:
-        return self.lkses[idx]
+    def __getitem__(self, idx: int) -> DKS:
+        return self.dks_ls[idx]
 
     def __len__(self) -> int:
-        return len(self.lkses)
+        return len(self.dks_ls)
 
     def __iter__(self) -> 'Storage':
         self._i = 0
         return self
 
-    def __next__(self) -> LKS:
+    def __next__(self) -> DKS:
         if self._i == len(self):
             raise StopIteration
-        lks = self.lkses[self._i]
+        dks = self.dks_ls[self._i]
         self._i += 1
-        return lks
+        return dks
 
     def create(
         self,
@@ -59,7 +59,7 @@ class Storage:
         kernel: Any,
         idx: Optional[int] = None,
         append: bool = False,
-    ) -> LKS:
+    ) -> DKS:
         if idx is None:
             idx = len(self)
         ald = ALDDictionary(
@@ -68,7 +68,7 @@ class Storage:
             m_max=self.m_max,
             jitter=self.jitter,
         )
-        lks = LKS(
+        dks = DKS(
             idx=idx,
             ald=ald,
             gamma=self.gamma,
@@ -79,14 +79,14 @@ class Storage:
             jitter=self.jitter,
             verbose=self.verbose,
         )
-        lks.fit(data=Xc, compress=self.compress)
+        dks.fit(data=Xc, compress=self.compress)
 
         if append:
-            self.append(lks)
-        return lks, 0
+            self.append(dks)
+        return dks, 0
 
-    def append(self, lks: LKS) -> None:
-        self.lkses.append(lks)
+    def append(self, dks: DKS) -> None:
+        self.dks_ls.append(dks)
 
     def pop(self):
-        return self.lkses.pop()
+        return self.dks_ls.pop()
