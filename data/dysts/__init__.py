@@ -21,7 +21,6 @@ import dysts.flows as flows
 def load_data(fn: str, **kwargs: dict) -> np.ndarray:
     filepath = os.path.dirname(__file__)
     subdirs = [os.path.join(filepath, d) for d in os.listdir(filepath) if os.path.isdir(os.path.join(filepath, d))]
-    print(subdirs)
     for subdir in subdirs:
         target_path = os.path.join(subdir, fn) + '.csv.gz'
         if os.path.exists(target_path):
@@ -29,7 +28,7 @@ def load_data(fn: str, **kwargs: dict) -> np.ndarray:
             break
     df.set_index('date', inplace=True)
 
-    return df, None
+    return df
 
 
 def sample_initial_conditions(model, points_to_sample, random_state, traj_length=1000, pts_per_period=30):

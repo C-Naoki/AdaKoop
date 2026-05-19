@@ -76,8 +76,8 @@ class IOHelper:
 
     def load_data(self, cfg: DictConfig, seed: int, verbose: bool) -> pd.DataFrame:
         dataset_module = import_module(f'data.{self.input_dir}')
-        data, metadata = dataset_module.load_data(**cfg, seed=seed, verbose=verbose)
-        return data, metadata
+        data = dataset_module.load_data(**cfg, seed=seed, verbose=verbose)
+        return data
 
     def build_results_df(
         self,

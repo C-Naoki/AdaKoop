@@ -33,6 +33,7 @@ def main(cfg: DictConfig) -> None:
             'Hostname': socket.gethostname(),
             'Model': cfg.model.name,
             'Input dir': cfg.io.input_dir,
+            'Forecasting setup': (cfg.model.lcurr, cfg.model.lstep),
         },
         title='Experimental Metadata',
         show_types=False,
@@ -45,7 +46,7 @@ def main(cfg: DictConfig) -> None:
     cfg.io.out_dir = ioh.create_path(cfg)
 
     # prepare for simulation
-    data, _ = ioh.load_data(cfg=cfg.data, seed=cfg.exp.seed, verbose=cfg.verbose)
+    data = ioh.load_data(cfg=cfg.data, seed=cfg.exp.seed, verbose=cfg.verbose)
     data = preprocess(data=data, cfg=cfg)
 
     print(f'DATASETS: {cfg.io.input_dir}_{cfg.data.fn}')
