@@ -3,12 +3,14 @@
 <div align="left">
 
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/downloads/release/python-31211/)
-[![Pyenv](https://img.shields.io/badge/Pyenv-2.6.7-yellow.svg)](https://github.com/pyenv/pyenv#installation)
+[![Pyenv](https://img.shields.io/badge/Pyenv-2.6.7-green.svg)](https://github.com/pyenv/pyenv#installation)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://docs.astral.sh/ruff/)
+[![arXiv](https://img.shields.io/badge/arXiv-2606.04930-b31b1b.svg)](https://arxiv.org/abs/2606.04930)
+[![DOI](https://img.shields.io/badge/DOI-10.1145/3770855.3817851-fbb631.svg)](https://doi.org/10.1145/3770855.3817851)
 </div>
 
-This repository contains the implementation of the [KDD 2026](https://kdd2026.kdd.org/) paper, "AdaKoop: Efficient Modeling of Nonlinear Dynamics from Nonstationary Data Streams with Koopman Operator Regression," by Naoki Chihara, Ren Fujiwara, Yasuko Matsubara, Yasushi Sakurai.
+This repository contains the implementation of the [KDD 2026](https://kdd2026.kdd.org/) paper, "AdaKoop: Efficient Modeling of Nonlinear Dynamics from Nonstationary Data Streams with Koopman Operator Regression," by Naoki Chihara, Ren Fujiwara, Yasuko Matsubara, and Yasushi Sakurai.
 
 <p align="center">
 <img src=".\docs\assets\overview.png" height = "360" alt="" align=center />
@@ -59,17 +61,17 @@ import numpy as np
 from src.models.adakoop import AdaKoop
 
 
-# Build the model and set parameters.
+# Build the model and set parameters
 model = AdaKoop(verbose=False)
 model.init_params(d=d, lcurr=lcurr)
 
-# Initialization.
+# Initialization
 # - X_train, X_test : np.ndarray, shape (n, d)
-# - X_test is time series immediately after X_train.
+# - X_test is time series immediately after X_train
 model.initialize(X_train)
 model.set_initial_model(X_train[-lcurr:])
 
-# Online forecasting.
+# Online forecasting
 pred = np.full_like(X_test, np.nan)
 for tc in range(len(X_test) - lstep):
     x_new = X_test[tc]
