@@ -104,4 +104,19 @@ We used the [`dysts`](https://github.com/GilpinLab/dysts) benchmark datasets for
 If you use this code for your research, please consider citing our paper.
 
 ```bibtex
+@inproceedings{chihara2026adakoop,
+author = {Chihara, Naoki and Fujiwara, Ren and Matsubara, Yasuko and Sakurai, Yasushi},
+title = {AdaKoop: Efficient Modeling of Nonlinear Dynamics from Nonstationary Data Streams with Koopman Operator Regression},
+year = {2026},
+isbn = {9798400722592},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3770855.3817851},
+doi = {10.1145/3770855.3817851},
+booktitle = {Proceedings of the 32nd ACM SIGKDD Conference on Knowledge Discovery and Data Mining V.2},
+pages = {628–639},
+numpages = {12},
+location = {Republic of Korea},
+series = {KDD '26}
+}
 ```
