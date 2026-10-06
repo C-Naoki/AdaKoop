@@ -166,6 +166,7 @@ def em_refine(
         'mu0': mu,
         'P0': P,
         'loglik_hist': np.array(loglik_hist, dtype=float),
+        'S0': S_zz_0 / (T - 1),
         'S1': S_zz_all / T,
         'S2': S_zpzt / (T - 1),
         'S3': (Y @ mu_s) / T,

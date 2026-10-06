@@ -278,7 +278,8 @@ class DKS:
         x_filt = (self.params['C'] @ mu_f).copy()
 
         if update_params:
-            S1_prev = self.params['S1'].copy()
+            Ezz_prev = self.current_P + np.outer(self.current_mu, self.current_mu)
+            self.params['S0'] = (1.0 - self.gamma) * self.params['S0'] + self.gamma * Ezz_prev
             Ezz = P_f + np.outer(mu_f, mu_f)
             self.params['S1'] = (1.0 - self.gamma) * self.params['S1'] + self.gamma * Ezz
 
@@ -286,8 +287,8 @@ class DKS:
             cross_approx = P_cross + np.outer(mu_f, self.current_mu)
             self.params['S2'] = (1.0 - self.gamma) * self.params['S2'] + self.gamma * cross_approx
             self.params['S3'] = (1.0 - self.gamma) * self.params['S3'] + self.gamma * np.outer(y_t, mu_f)
-            S1_prev_reg = S1_prev + self.lambda_A * np.eye(self.r)
-            self.params['A'] = self.params['S2'] @ la.inv(S1_prev_reg)
+            S0_reg = self.params['S0'] + self.lambda_A * np.eye(self.r)
+            self.params['A'] = self.params['S2'] @ la.inv(S0_reg)
 
             eigvals = np.linalg.eigvals(self.params['A'])
             rho = np.max(np.abs(eigvals))
