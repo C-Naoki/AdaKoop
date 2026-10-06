@@ -18,6 +18,11 @@ This repository contains the implementation of the [KDD 2026](https://kdd2026.kd
 <b>Figure 1.</b> Overview of AdaKoop.
 </p>
 
+## Preview of Results
+
+https://github.com/user-attachments/assets/97a02e72-eb69-4c84-be2b-6c62adcf2827
+
+
 ## Usage
 1. Clone this repository.
     ```bash
