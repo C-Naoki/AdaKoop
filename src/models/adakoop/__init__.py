@@ -5,8 +5,8 @@ from scipy.cluster.hierarchy import fcluster, linkage
 from scipy.spatial.distance import squareform
 from scipy.stats import chi2
 
-from src.models.adakoop.module.kernel import build_kernel
 from src.models.adakoop.module.dks import DKS
+from src.models.adakoop.module.kernel import build_kernel
 from src.models.adakoop.module.storage import Storage
 
 MAX_MODELS = 30
@@ -118,17 +118,20 @@ class AdaKoop:
                 dist_list.append(d_val)
         dist_vec = np.asarray(dist_list, dtype=float)
 
-        Z = linkage(dist_vec, method='average')
-        if n_clusters is not None:
-            n_clusters = min(n_clusters, self.max_models)
-            labels = fcluster(Z, t=n_clusters, criterion='maxclust')
+        if n_wins == 1:
+            labels = np.ones(1, dtype=int)
         else:
-            if dist_threshold is None:
-                dist_threshold = np.median(dist_vec) * 1.5
-            labels = fcluster(Z, t=dist_threshold, criterion='distance')
+            Z = linkage(dist_vec, method='average')
+            if n_clusters is not None:
+                n_clusters = min(n_clusters, self.max_models)
+                labels = fcluster(Z, t=n_clusters, criterion='maxclust')
+            else:
+                if dist_threshold is None:
+                    dist_threshold = np.median(dist_vec) * 1.5
+                labels = fcluster(Z, t=dist_threshold, criterion='distance')
 
-            if len(np.unique(labels)) > self.max_models:
-                labels = fcluster(Z, t=self.max_models, criterion='maxclust')
+                if len(np.unique(labels)) > self.max_models:
+                    labels = fcluster(Z, t=self.max_models, criterion='maxclust')
 
         unique_labels = np.unique(labels)
         if self.verbose:
@@ -198,7 +201,6 @@ class AdaKoop:
 
     def model_selection(self, x_new: np.ndarray) -> Dict[str, Any]:
         self._create_cnt += 1
-        created_new = False
         self.current_data = np.vstack([self.current_data, x_new])
         if len(self.current_data) > self.lcurr:
             self.current_data = self.current_data[-self.lcurr :]
@@ -211,52 +213,33 @@ class AdaKoop:
                     'status': 'accumulating_data',
                     'current_len': len(self.current_data),
                 }
-            else:
-                best_score = float('inf')
-                accepted_any = False
-                for dks in self.storage():
-                    metrics = dks.score_window(
-                        Xc=self.current_data,
-                        chi2_th=self.chi2_th,
-                        reset_P_scale=self.state_reset_P_scale,
-                        burnin=self.burnin,
-                    )
 
-                    exceed_rate = metrics['exceed_rate']
-                    cusum_max = metrics['cusum_max']
-                    mean_dist_sq = metrics['mean_dist_sq']
-
-                    ok = (exceed_rate <= self.exceed_rate_th) and (cusum_max <= self.cusum_h)
-                    if ok:
-                        accepted_any = True
-
-                    if mean_dist_sq < best_score:
-                        best_score = mean_dist_sq
-
-                if not accepted_any and (len(self.storage) < self.max_models):
-                    if self._create_cnt < self.least_duration:
-                        self.storage.pop()
-                    kernel = build_kernel(self.current_data, kernel_type=self.kernel_type)
-                    dks_new, _ = self.storage.create(
-                        Xc=self.current_data,
-                        kernel=kernel,
-                        append=True,
-                    )
-                    self.dks_c = dks_new
-                    self._dks_c_idx = dks_new.idx
-                    self._create_cnt = 0
-                    created_new = True
-
-                    self._skip_next_update = True
-                    self._cusum_g = 0.0
+            previous = self.dks_c
+            stored_models = tuple(self.storage())
+            selected = self.set_initial_model(self.current_data, filter_accepted=True)
+            if selected is not None:
+                created_new = all(selected is not dks for dks in stored_models)
+                switched = selected is not previous
+                self._cusum_g = 0.0
+                self._skip_next_update = True
+                if created_new:
                     return {
                         'triggered': True,
-                        'switched': created_new,
-                        'created_new': created_new,
+                        'switched': True,
+                        'created_new': True,
                         'cusum_g': self._cusum_g,
-                        'active_model_idx': self.dks_c.idx,
+                        'active_model_idx': selected.idx,
                     }
-                self._in_recovery = False
+                return {
+                    'triggered': False,
+                    'switched': switched,
+                    'reused': switched,
+                    'created_new': False,
+                    'cusum_g': self._cusum_g,
+                    'active_model_idx': selected.idx,
+                }
+
+            self._in_recovery = False
 
         dist_sq = self._innovation_dist_sq(self.dks_c, x_new)
         self._cusum_g = max(0.0, self._cusum_g + (dist_sq - self.chi2_th))
@@ -265,8 +248,8 @@ class AdaKoop:
         if not triggered:
             return {
                 'triggered': False,
-                'switched': created_new,
-                'created_new': created_new,
+                'switched': False,
+                'created_new': False,
                 'cusum_g': self._cusum_g,
                 'active_model_idx': self.dks_c.idx,
             }
@@ -282,7 +265,7 @@ class AdaKoop:
 
         return {
             'triggered': True,
-            'created_new': created_new,
+            'created_new': False,
             'dist_sq': dist_sq,
             'cusum_g': self._cusum_g,
             'active_model_idx': self.dks_c.idx,
@@ -299,8 +282,8 @@ class AdaKoop:
         out = self.dks_c.update(
             x_new,
             compress=self.compress,
-            update_dict=self.add_dict,
-            update_params=self.online_update,
+            update_dict=self.add_dict and not self._in_recovery,
+            update_params=self.online_update and not self._in_recovery,
             update_state=True,
         )
         out['skipped'] = False
@@ -324,11 +307,16 @@ class AdaKoop:
 
         return pred_mean, pred_cov, False
 
-    def set_initial_model(self, X: np.ndarray) -> None:
-        if self.dks_c is not None:
+    def set_initial_model(
+        self,
+        X: np.ndarray,
+        filter_accepted: bool = False,
+    ) -> Optional[DKS]:
+        if not filter_accepted and self.dks_c is not None:
             print('[Warning] Initial model is already set. Overwriting.')
 
         best_score_any = float('inf')
+        selected = None
         for pos, dks in enumerate(self.storage()):
             metrics = dks.score_window(
                 Xc=X,
@@ -337,18 +325,45 @@ class AdaKoop:
                 burnin=self.burnin,
             )
 
+            if filter_accepted:
+                exceed_rate = metrics['exceed_rate']
+                cusum_max = metrics['cusum_max']
             mean_dist_sq = metrics['mean_dist_sq']
-            if mean_dist_sq < best_score_any:
+            ok = not filter_accepted or (exceed_rate <= self.exceed_rate_th and cusum_max <= self.cusum_h)
+            if ok and mean_dist_sq < best_score_any:
                 best_score_any = mean_dist_sq
                 best_pos_any = pos
                 best_metrics_any = metrics
+                selected = dks
 
-        selected = self.storage[best_pos_any]
+        if filter_accepted:
+            if selected is None:
+                if len(self.storage) < self.max_models:
+                    if self._create_cnt < self.least_duration:
+                        self.storage.pop()
+                    kernel = build_kernel(X, kernel_type=self.kernel_type)
+                    self.dks_c, _ = self.storage.create(
+                        Xc=X,
+                        kernel=kernel,
+                        append=True,
+                    )
+                    self._dks_c_idx = self.dks_c.idx
+                    self._create_cnt = 0
+                    self.current_data = X
+                    self._in_recovery = False
+                    return self.dks_c
+                return None
+        else:
+            selected = self.storage[best_pos_any]
+
         _set_filter_state(selected, best_metrics_any['mu_before_last'], best_metrics_any['P_before_last'])
         self.dks_c = selected
         self._dks_c_idx = selected.idx
         self.current_data = X
         self._in_recovery = False
+        if filter_accepted:
+            return selected
+        return None
 
     def _transition_kernel(self, X: np.ndarray, Y: np.ndarray, kernel: Any) -> float:
         L = min(X.shape[0], Y.shape[0])
